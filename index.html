@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cold DM Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        // Lucide Icons as inline SVG components
+        const Mail = ({ className = "w-6 h-6" }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+        );
+
+        const Plus = ({ className = "w-6 h-6" }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+        );
+
+        const Users = ({ className = "w-6 h-6" }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+        );
+
+        const TrendingUp = ({ className = "w-6 h-6" }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+        );
+
+        const Download = ({ className = "w-6 h-6" }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+        );
+
+        const Search = ({ className = "w-6 h-6" }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+        );
+
+        const Calendar = ({ className = "w-6 h-6" }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+        );
+
+        const Filter = ({ className = "w-6 h-6" }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+        );
+
+        const LineChart = ({ className = "w-6 h-6" }) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+    </svg>
+);
+
+        const ColdDMTracker = () => {
+            const [contacts, setContacts] = useState([]);
+            const [showAddForm, setShowAddForm] = useState(false);
+            const [showChart, setShowChart] = useState(false);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterStatus, setFilterStatus] = useState('all');
+            const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    platform: 'Discord',
+    outcome: 'pending',
+    notes: '',
+    dateSent: new Date().toISOString().split('T')[0]
+});
+
+            const outcomes = {
+    positive: { label: 'Positive', color: 'bg-green-500', textColor: 'text-green-700', bgLight: 'bg-green-50', formBg: 'bg-green-50', formText: 'text-green-700' },
+    neutral: { label: 'Neutral', color: 'bg-yellow-500', textColor: 'text-yellow-700', bgLight: 'bg-yellow-50', formBg: 'bg-yellow-50', formText: 'text-yellow-700' },
+    negative: { label: 'Negative', color: 'bg-red-500', textColor: 'text-red-700', bgLight: 'bg-red-50', formBg: 'bg-red-50', formText: 'text-red-700' },
+    pending: { label: 'No Reply', color: 'bg-gray-800', textColor: 'text-gray-700', bgLight: 'bg-gray-50', formBg: 'bg-black', formText: 'text-white' }
+};
+
+            const platforms = ['Discord', 'Email', 'LinkedIn', 'Twitter', 'Instagram', 'Other'];
+
+            const stats = useMemo(() => {
+                return {
+                    positive: contacts.filter(c => c.outcome === 'positive').length,
+                    neutral: contacts.filter(c => c.outcome === 'neutral').length,
+                    negative: contacts.filter(c => c.outcome === 'negative').length,
+                    pending: contacts.filter(c => c.outcome === 'pending').length,
+                    total: contacts.length,
+                    responseRate: contacts.length > 0 
+                        ? ((contacts.filter(c => c.outcome !== 'pending').length / contacts.length) * 100).toFixed(1)
+                        : 0,
+                    successRate: contacts.length > 0
+                        ? ((contacts.filter(c => c.outcome === 'positive').length / contacts.length) * 100).toFixed(1)
+                        : 0
+                };
+            }, [contacts]);
+
+            const filteredContacts = useMemo(() => {
+                return contacts.filter(contact => {
+                    const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                        (contact.email && contact.email.toLowerCase().includes(searchTerm.toLowerCase()));
+                    const matchesFilter = filterStatus === 'all' || contact.outcome === filterStatus;
+                    return matchesSearch && matchesFilter;
+                });
+            }, [contacts, searchTerm, filterStatus]);
+
+            // Load contacts from storage on mount
+React.useEffect(() => {
+    const loadContacts = async () => {
+        try {
+            const result = await window.storage.get('cold-dm-contacts');
+            if (result && result.value) {
+                const loadedContacts = JSON.parse(result.value);
+                setContacts(loadedContacts);
+            }
+        } catch (error) {
+            console.log('No existing contacts found or error loading:', error);
+        }
+    };
+    loadContacts();
+}, []);
+
+// Save contacts to storage whenever they change
+React.useEffect(() => {
+    const saveContacts = async () => {
+        if (contacts.length >= 0) { // Save even if empty to allow clearing
+            try {
+                await window.storage.set('cold-dm-contacts', JSON.stringify(contacts));
+            } catch (error) {
+                console.error('Error saving contacts:', error);
+            }
+        }
+    };
+    saveContacts();
+}, [contacts]);
+
+            const handleSubmit = () => {
+                if (!formData.name.trim()) {
+                    alert('Please enter a name');
+                    return;
+                }
+                const newContact = {
+                    ...formData,
+                    id: Date.now(),
+                    createdAt: new Date().toISOString()
+                };
+                setContacts([newContact, ...contacts]);
+                setFormData({
+                    name: '',
+                    email: '',
+                    platform: 'Email',
+                    outcome: 'pending',
+                    notes: '',
+                    dateSent: new Date().toISOString().split('T')[0]
+                });
+                setShowAddForm(false);
+            };
+
+            const handleBulkImport = () => {
+    const text = prompt('Paste contacts in format: Name, Platform, Outcome (one per line)\nExample:\nJohn Doe, Discord, positive\nJane Smith, Email, pending');
+    if (!text) return;
+
+    const lines = text.split('\n').filter(line => line.trim());
+    const newContacts = lines.map((line, index) => {
+        const parts = line.split(',').map(p => p.trim());
+        return {
+            id: Date.now() + index,
+            name: parts[0] || 'Unknown',
+            email: '',
+            platform: parts[1] || 'Discord',
+            outcome: parts[2] || 'pending',
+            notes: '',
+            dateSent: new Date().toISOString().split('T')[0],
+            createdAt: new Date().toISOString()
+        };
+    });
+    setContacts([...newContacts, ...contacts]);
+};
+            const updateContactOutcome = (id, outcome) => {
+                setContacts(contacts.map(c => 
+                    c.id === id ? { ...c, outcome, updatedAt: new Date().toISOString() } : c
+                ));
+            };
+
+            const deleteContact = (id) => {
+                if (confirm('Are you sure you want to delete this contact?')) {
+                    setContacts(contacts.filter(c => c.id !== id));
+                }
+            };
+
+            const exportData = () => {
+                const csv = [
+                    ['Name', 'Email', 'Platform', 'Outcome', 'Date Sent', 'Notes'],
+                    ...contacts.map(c => [c.name, c.email, c.platform, c.outcome, c.dateSent, c.notes])
+                ].map(row => row.join(',')).join('\n');
+                
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `cold-dm-tracker-${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+            };
+
+            const chartData = useMemo(() => {
+    const dateMap = {};
+    contacts.forEach(contact => {
+        const date = contact.dateSent;
+        if (!dateMap[date]) {
+            dateMap[date] = { total: 0, positive: 0 };
+        }
+        dateMap[date].total++;
+        if (contact.outcome === 'positive') {
+            dateMap[date].positive++;
+        }
+    });
+    
+    return Object.entries(dateMap)
+        .map(([date, data]) => ({
+            date,
+            percentage: (data.positive / data.total * 100).toFixed(1),
+            positiveCount: data.positive,
+            totalCount: data.total
+        }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+}, [contacts]);
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+                    <div className="bg-white shadow-sm border-b border-slate-200">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                            <div className="flex items-center justify-between flex-wrap gap-4">
+                                <div className="flex items-center space-x-3">
+                                    <div className="bg-blue-600 p-2 rounded-lg">
+                                        <Mail className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h1 className="text-2xl font-bold text-slate-900">Cold DM Tracker</h1>
+                                        <p className="text-sm text-slate-600">Track and analyze your outreach campaigns</p>
+                                    </div>
+                                </div>
+                                <div className="flex space-x-3">
+                                  <button onClick={() => setShowChart(!showChart)} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center space-x-2">
+    <LineChart className="w-4 h-4" />
+    <span>{showChart ? 'Hide' : 'Show'} Chart</span>
+</button>
+                                    <button onClick={handleBulkImport} className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition flex items-center space-x-2">
+                                        <Users className="w-4 h-4" />
+                                        <span>Bulk Import</span>
+                                    </button>
+                                    <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+                                        <Plus className="w-4 h-4" />
+                                        <span>Add Contact</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold">Positive</h3>
+                                    <TrendingUp className="w-6 h-6 opacity-80" />
+                                </div>
+                                <p className="text-4xl font-bold mb-2">{stats.positive}</p>
+                                <p className="text-green-100 text-sm">Success rate: {stats.successRate}%</p>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl shadow-lg p-6 text-white">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold">Neutral</h3>
+                                    <Mail className="w-6 h-6 opacity-80" />
+                                </div>
+                                <p className="text-4xl font-bold mb-2">{stats.neutral}</p>
+                                <p className="text-yellow-100 text-sm">Need follow-up</p>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold">Negative</h3>
+                                    <Filter className="w-6 h-6 opacity-80" />
+                                </div>
+                                <p className="text-4xl font-bold mb-2">{stats.negative}</p>
+                                <p className="text-red-100 text-sm">Learn and improve</p>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl shadow-lg p-6 text-white">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold">No Reply</h3>
+                                    <Calendar className="w-6 h-6 opacity-80" />
+                                </div>
+                                <p className="text-4xl font-bold mb-2">{stats.pending}</p>
+                                <p className="text-gray-300 text-sm">Response rate: {stats.responseRate}%</p>
+                            </div>
+                        </div>
+
+                        {showChart && chartData.length > 0 && (
+    <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border border-slate-200">
+        <h2 className="text-xl font-bold text-slate-900 mb-6">Daily Positive Response Rate</h2>
+        <div className="relative h-80">
+            <svg className="w-full h-full" viewBox="0 0 800 300">
+                <defs>
+                    <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.05" />
+                    </linearGradient>
+                </defs>
+                
+                {/* Grid lines */}
+                {[0, 25, 50, 75, 100].map(y => (
+                    <g key={y}>
+                        <line x1="60" y1={250 - (y * 2)} x2="780" y2={250 - (y * 2)} stroke="#e2e8f0" strokeWidth="1" />
+                        <text x="45" y={255 - (y * 2)} fontSize="12" fill="#64748b" textAnchor="end">{y}%</text>
+                    </g>
+                ))}
+                
+                {/* Line chart */}
+                {chartData.length > 1 && (
+                    <>
+                        <polyline
+                            fill="url(#chartGradient)"
+                            stroke="none"
+                            points={
+                                chartData.map((d, i) => {
+                                    const x = 60 + (i * (720 / (chartData.length - 1)));
+                                    const y = 250 - (parseFloat(d.percentage) * 2);
+                                    return `${x},${y}`;
+                                }).join(' ') + ` 780,250 60,250`
+                            }
+                        />
+                        <polyline
+                            fill="none"
+                            stroke="#10b981"
+                            strokeWidth="3"
+                            points={
+                                chartData.map((d, i) => {
+                                    const x = 60 + (i * (720 / (chartData.length - 1)));
+                                    const y = 250 - (parseFloat(d.percentage) * 2);
+                                    return `${x},${y}`;
+                                }).join(' ')
+                            }
+                        />
+                    </>
+                )}
+                
+                {/* Data points */}
+                {chartData.map((d, i) => {
+                    const x = 60 + (i * (720 / Math.max(chartData.length - 1, 1)));
+                    const y = 250 - (parseFloat(d.percentage) * 2);
+                    return (
+                        <g key={i}>
+                            <circle cx={x} cy={y} r="5" fill="#10b981" stroke="white" strokeWidth="2" />
+                            <text x={x} y="275" fontSize="11" fill="#64748b" textAnchor="middle" transform={`rotate(-45 ${x} 275)`}>
+                                {new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </text>
+                        </g>
+                    );
+                })}
+            </svg>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-4 justify-center text-sm text-slate-600">
+            {chartData.map((d, i) => (
+                <div key={i} className="text-center">
+                    <p className="font-semibold text-green-600">{d.percentage}%</p>
+                    <p className="text-xs">{d.positiveCount}/{d.totalCount} on {new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                </div>
+            ))}
+        </div>
+    </div>
+)}
+
+                        {showAddForm && (
+    <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border border-slate-200">
+        <h2 className="text-xl font-bold text-slate-900 mb-4">Add New Contact</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Name *</label>
+                <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="John Doe" />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Platform</label>
+                <select value={formData.platform} onChange={(e) => setFormData({...formData, platform: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    {platforms.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Date Sent</label>
+                <input type="date" value={formData.dateSent} onChange={(e) => setFormData({...formData, dateSent: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            </div>
+            <div>
+    <label className="block text-sm font-medium text-slate-700 mb-2">Outcome</label>
+    <select 
+    value={formData.outcome} 
+    onChange={(e) => setFormData({...formData, outcome: e.target.value})} 
+    className={`w-full px-4 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 font-semibold border-2 ${outcomes[formData.outcome].formBg} ${outcomes[formData.outcome].formText} border-transparent`}
+>
+        {Object.entries(outcomes).map(([key, val]) => (<option key={key} value={key}>{val.label}</option>))}
+    </select>
+</div>
+            {formData.platform !== 'Discord' && (
+                <>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
+                        <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="john@example.com" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
+                        <input type="text" value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Follow up in 3 days..." />
+                    </div>
+                </>
+            )}
+            <div className="md:col-span-2 flex space-x-3">
+                <button onClick={handleSubmit} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">Add Contact</button>
+                <button onClick={() => setShowAddForm(false)} className="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition font-medium">Cancel</button>
+            </div>
+        </div>
+    </div>
+)}
+
+                        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-slate-200">
+                            <div className="flex flex-col md:flex-row gap-4 items-end">
+                                <div className="flex-1">
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Search</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                        <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Search by name or email..." />
+                                    </div>
+                                </div>
+                                <div className="w-full md:w-48">
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Filter by Status</label>
+                                    <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                        <option value="all">All Contacts</option>
+                                        {Object.entries(outcomes).map(([key, val]) => (<option key={key} value={key}>{val.label}</option>))}
+                                    </select>
+                                </div>
+                                <button onClick={exportData} disabled={contacts.length === 0} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <Download className="w-4 h-4" />
+                                    <span>Export CSV</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+                                <h2 className="text-lg font-bold text-slate-900">Contacts ({filteredContacts.length})</h2>
+                            </div>
+                            {filteredContacts.length === 0 ? (
+                                <div className="p-12 text-center">
+                                    <Mail className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                                    <p className="text-slate-600 text-lg mb-2">No contacts yet</p>
+                                    <p className="text-slate-500 text-sm">Start tracking your cold DM outreach by adding contacts</p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-slate-200">
+                                    {filteredContacts.map(contact => (
+                                        <div key={contact.id} className="p-6 hover:bg-slate-50 transition bg-gradient-to-r from-slate-50/50 via-blue-50/30 to-purple-50/30">
+                                            <div className="flex items-start justify-between flex-wrap gap-4">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center space-x-3 mb-2 flex-wrap">
+                                                        <h3 className="text-2xl font-bold text-slate-900">{contact.name}</h3>
+                                                        <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium">{contact.platform}</span>
+                                                    </div>
+                                                    {contact.email && (<p className="text-slate-600 text-sm mb-2">{contact.email}</p>)}
+                                                    {contact.notes && (<p className="text-slate-500 text-sm italic mb-3">{contact.notes}</p>)}
+                                                    <div className="flex items-center space-x-4 text-xs text-slate-500 flex-wrap">
+                                                        <span>Sent: {contact.dateSent}</span>
+                                                        {contact.updatedAt && (<span>Updated: {new Date(contact.updatedAt).toLocaleDateString()}</span>)}
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end space-y-2">
+                                                    <select value={contact.outcome} onChange={(e) => updateContactOutcome(contact.id, e.target.value)} className={`px-4 py-2 rounded-lg font-medium text-sm border-2 ${outcomes[contact.outcome].bgLight} ${outcomes[contact.outcome].textColor} border-transparent focus:ring-2 focus:ring-blue-500`}>
+                                                        {Object.entries(outcomes).map(([key, val]) => (<option key={key} value={key}>{val.label}</option>))}
+                                                    </select>
+                                                    <button onClick={() => deleteContact(contact.id)} className="text-red-600 hover:text-red-700 text-sm font-medium">Delete</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {contacts.length > 0 && (
+                            <div className="mt-8 bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+                                <h3 className="text-lg font-bold text-slate-900 mb-4">Quick Insights</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                    <div>
+                                        <p className="text-2xl font-bold text-blue-600">{stats.total}</p>
+                                        <p className="text-sm text-slate-600">Total Contacts</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold text-green-600">{stats.responseRate}%</p>
+                                        <p className="text-sm text-slate-600">Response Rate</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold text-purple-600">{stats.successRate}%</p>
+                                        <p className="text-sm text-slate-600">Success Rate</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold text-orange-600">{stats.pending}</p>
+                                        <p className="text-sm text-slate-600">Awaiting Reply</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<ColdDMTracker />, document.getElementById('root'));
+    </script>
+</body>
+</html>
