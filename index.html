@@ -15,8 +15,34 @@
 </head>
 <body>
     <div id="root"></div>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <script type="text/babel">
+        // 🔥 Firebase init
+// 🔥 Firebase init
+const firebaseConfig = {
+  apiKey: "AIzaSyClNbgejQS_AByKpU3zxtuu-BAvtLSEMyQ",
+  authDomain: "cold-dm-tracker.firebaseapp.com",
+  projectId: "cold-dm-tracker",
+  appId: "1:365206893580:web:df7ff65b11f22a91e2ea29",
+  storageBucket: "cold-dm-tracker.firebasestorage.app",
+  messagingSenderId: "365206893580"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// 🔑 Hash password → deterministic account ID
+async function passwordToAccountId(password) {
+  const enc = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+
         const { useState, useMemo, useEffect } = React;
 
         // Lucide Icons as inline SVG components
@@ -74,20 +100,66 @@
     </svg>
 );
 
-        const ColdDMTracker = () => {
-            const [contacts, setContacts] = useState([]);
-            const [showAddForm, setShowAddForm] = useState(false);
-            const [showChart, setShowChart] = useState(false);
-            const [searchTerm, setSearchTerm] = useState('');
-            const [filterStatus, setFilterStatus] = useState('all');
-            const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    platform: 'Discord',
-    outcome: 'pending',
-    notes: '',
-    dateSent: new Date().toISOString().split('T')[0]
-});
+const PasswordGate = ({ onUnlock }) => {
+  const [password, setPassword] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+
+  const submit = async () => {
+    if (password.length < 4) {
+      alert("Password too short");
+      return;
+    }
+    setLoading(true);
+    const accountId = await passwordToAccountId(password);
+    onUnlock(accountId);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-100">
+      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
+        <h1 className="text-2xl font-bold mb-4">Enter Tracker Password</h1>
+        <input
+          type="password"
+          className="w-full px-4 py-2 border rounded-lg mb-4"
+          placeholder="Any password = one account"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+        />
+        <button
+          onClick={submit}
+          disabled={loading}
+          className="w-full bg-blue-600 text-white py-2 rounded-lg"
+        >
+          {loading ? "Loading..." : "Enter"}
+        </button>
+        <p className="text-xs text-slate-500 mt-3">
+          Same password = same data on any device
+        </p>
+      </div>
+    </div>
+  );
+};
+
+
+        const ColdDMTracker = ({ accountId }) => {
+    const [contacts, setContacts] = useState([]);
+    const [loaded, setLoaded] = useState(false); // ✅ CRITICAL: Add this
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [showChart, setShowChart] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        platform: 'Discord',
+        outcome: 'pending',
+        notes: '',
+        dateSent: new Date().toISOString().split('T')[0]
+    });
+
+    // ... rest of your code stays the same
 
             const outcomes = {
     positive: { label: 'Positive', color: 'bg-green-500', textColor: 'text-green-700', bgLight: 'bg-green-50', formBg: 'bg-green-50', formText: 'text-green-700' },
@@ -124,34 +196,33 @@
             }, [contacts, searchTerm, filterStatus]);
 
             // Load contacts from storage on mount
-React.useEffect(() => {
-    const loadContacts = async () => {
-        try {
-            const result = await window.storage.get('cold-dm-contacts');
-            if (result && result.value) {
-                const loadedContacts = JSON.parse(result.value);
-                setContacts(loadedContacts);
-            }
-        } catch (error) {
-            console.log('No existing contacts found or error loading:', error);
-        }
-    };
-    loadContacts();
-}, []);
+// Load contacts
+useEffect(() => {
+  const unsub = db
+    .collection("accounts")
+    .doc(accountId)
+    .onSnapshot(doc => {
+      if (doc.exists) {
+        setContacts(doc.data().contacts || []);
+      }
+      setLoaded(true); // ✅ mark load complete
+    });
 
-// Save contacts to storage whenever they change
-React.useEffect(() => {
-    const saveContacts = async () => {
-        if (contacts.length >= 0) { // Save even if empty to allow clearing
-            try {
-                await window.storage.set('cold-dm-contacts', JSON.stringify(contacts));
-            } catch (error) {
-                console.error('Error saving contacts:', error);
-            }
-        }
-    };
-    saveContacts();
-}, [contacts]);
+  return () => unsub();
+}, [accountId]);
+
+
+// Save contacts
+useEffect(() => {
+  if (!loaded) return; // ⛔ DO NOT SAVE BEFORE LOAD
+
+  db.collection("accounts")
+    .doc(accountId)
+    .set({ contacts }, { merge: true });
+}, [contacts, accountId, loaded]);
+
+
+
 
             const handleSubmit = () => {
                 if (!formData.name.trim()) {
@@ -529,7 +600,18 @@ React.useEffect(() => {
             );
         };
 
-        ReactDOM.render(<ColdDMTracker />, document.getElementById('root'));
+        const App = () => {
+  const [accountId, setAccountId] = React.useState(null);
+
+  if (!accountId) {
+    return <PasswordGate onUnlock={setAccountId} />;
+  }
+
+  return <ColdDMTracker accountId={accountId} />;
+};
+
+ReactDOM.render(<App />, document.getElementById("root"));
+
     </script>
 </body>
 </html>
