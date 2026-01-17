@@ -45,6 +45,183 @@ async function passwordToAccountId(password) {
 
         const { useState, useMemo, useEffect } = React;
 
+        const BulkUploadModal = ({
+  show,
+  onClose,
+  bulkRows,
+  setBulkRows,
+  platforms,
+  setPlatforms,
+  attributeGroups,
+  setAttributeGroups,
+  setContacts
+}) => {
+  if (!show) return null;
+
+  const updateRow = (id, key, value) => {
+    setBulkRows(rows =>
+      rows.map(r => r.id === id ? { ...r, [key]: value } : r)
+    );
+  };
+
+  const addRow = () => {
+    setBulkRows(rows => [
+      ...rows,
+      {
+        id: Date.now() + Math.random(),
+        name: "",
+        outcome: "pending",
+        dateSent: new Date().toISOString().split("T")[0],
+        platform: platforms[0] || "Discord",
+        attribute: ""
+      }
+    ]);
+  };
+
+  const submitBulk = () => {
+    const valid = bulkRows.filter(r => r.name.trim());
+    if (!valid.length) {
+      alert("Enter at least one name");
+      return;
+    }
+
+    const newContacts = valid.map(r => ({
+      id: Date.now() + Math.random(),
+      name: r.name,
+      email: "",
+      platform: r.platform,
+      outcome: r.outcome,
+      attribute: r.attribute,
+      notes: "",
+      dateSent: r.dateSent,
+      createdAt: new Date().toISOString()
+    }));
+
+    setContacts(prev => [...newContacts, ...prev]);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl w-[90vw] max-w-6xl max-h-[80vh] flex flex-col">
+
+        <div className="px-6 py-4 border-b font-bold text-lg">
+          Bulk Upload (Fast Mode)
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {bulkRows.map(row => (
+            <div
+              key={row.id}
+              className="grid grid-cols-[3fr_auto_auto_auto_auto_1fr_1fr_1fr] gap-2 items-center"
+            >
+              <input
+                value={row.name}
+                onChange={e => updateRow(row.id, "name", e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+                placeholder="Name"
+              />
+
+              {[
+                ["positive", "P", "bg-green-500"],
+                ["neutral", "N", "bg-yellow-400 text-black"],
+                ["negative", "N", "bg-red-500"],
+                ["pending", "NR", "bg-black"]
+              ].map(([key, label, cls]) => (
+                <button
+                  key={key}
+                  onClick={() => updateRow(row.id, "outcome", key)}
+                  className={`w-9 h-9 rounded-md text-xs font-bold text-white
+                    ${cls}
+                    ${row.outcome === key ? "ring-2 ring-offset-2 ring-blue-500" : "opacity-40"}
+                  `}
+                >
+                  {label}
+                </button>
+              ))}
+
+              <input
+                type="date"
+                value={row.dateSent}
+                onChange={e => updateRow(row.id, "dateSent", e.target.value)}
+                className="px-2 py-2 border rounded-lg"
+              />
+
+              <select
+  value={row.platform}
+  onChange={e => {
+    if (e.target.value === "__add__") {
+      const name = prompt("Add new platform");
+      if (!name) return;
+      if (platforms.includes(name)) {
+        alert("Already exists");
+        return;
+      }
+      setPlatforms(prev => [...prev, name]);
+      updateRow(row.id, "platform", name);
+      return;
+    }
+    updateRow(row.id, "platform", e.target.value);
+  }}
+  className="px-2 py-2 border rounded-lg"
+>
+  {platforms.map(p => (
+    <option key={p} value={p}>{p}</option>
+  ))}
+  <option value="__add__">＋ Add New</option>
+</select>
+
+
+              <select
+  value={row.attribute}
+  onChange={e => {
+    if (e.target.value === "__add__") {
+      const name = prompt("Add new attribute group");
+      if (!name) return;
+      if (attributeGroups.includes(name)) {
+        alert("Already exists");
+        return;
+      }
+      setAttributeGroups(prev => [...prev, name]);
+      updateRow(row.id, "attribute", name);
+      return;
+    }
+    updateRow(row.id, "attribute", e.target.value);
+  }}
+  className="px-2 py-2 border rounded-lg w-full"
+>
+  <option value="">—</option>
+  {attributeGroups.map(a => (
+    <option key={a} value={a}>{a}</option>
+  ))}
+  <option value="__add__">＋ Add New</option>
+</select>
+
+            </div>
+          ))}
+        </div>
+
+        <div className="px-6 py-4 border-t flex justify-between">
+          <button onClick={addRow} className="px-4 py-2 bg-slate-200 rounded-lg">
+            + Add Row
+          </button>
+          <div className="space-x-3">
+            <button onClick={onClose}>Cancel</button>
+            <button
+              onClick={submitBulk}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg"
+            >
+              Import
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+
         // Lucide Icons as inline SVG components
         const Mail = ({ className = "w-6 h-6" }) => (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -144,6 +321,12 @@ const PasswordGate = ({ onUnlock }) => {
 
 
         const ColdDMTracker = ({ accountId }) => {
+            const [platforms, setPlatforms] = useState([
+  'Discord', 'Email', 'LinkedIn', 'Twitter', 'Instagram'
+]);
+
+const [attributeGroups, setAttributeGroups] = useState([]);
+
     const [contacts, setContacts] = useState([]);
     const [loaded, setLoaded] = useState(false); // ✅ CRITICAL: Add this
     const [showAddForm, setShowAddForm] = useState(false);
@@ -158,6 +341,46 @@ const PasswordGate = ({ onUnlock }) => {
         notes: '',
         dateSent: new Date().toISOString().split('T')[0]
     });
+    const [showBulkModal, setShowBulkModal] = useState(false);
+const [bulkRows, setBulkRows] = useState([
+  createEmptyBulkRow()
+]);
+
+const addNewItem = (label, setter, existing) => {
+  const name = prompt(`Add new ${label}`);
+  if (!name) return;
+  if (existing.includes(name)) {
+    alert("Already exists");
+    return;
+  }
+  setter(prev => [...prev, name]);
+};
+
+const deleteItem = (item, setter, label) => {
+  if (confirm(`Delete "${item}" ${label}? This cannot be undone.`)) {
+    setter(prev => prev.filter(p => p !== item));
+  }
+};
+
+
+function createEmptyBulkRow() {
+  return {
+    id: Date.now() + Math.random(),
+    name: "",
+    outcome: "pending",
+    dateSent: new Date().toISOString().split("T")[0],
+    platform: platforms[0] || "Discord",
+    attribute: ""
+  };
+}
+
+const bulkOutcomeButtons = [
+  { key: "positive", label: "P", class: "bg-green-500 text-white" },
+  { key: "neutral", label: "N", class: "bg-yellow-400 text-black" },
+  { key: "negative", label: "N", class: "bg-red-500 text-white" },
+  { key: "pending", label: "NR", class: "bg-black text-white" },
+];
+
 
     // ... rest of your code stays the same
 
@@ -168,7 +391,7 @@ const PasswordGate = ({ onUnlock }) => {
     pending: { label: 'No Reply', color: 'bg-gray-800', textColor: 'text-gray-700', bgLight: 'bg-gray-50', formBg: 'bg-black', formText: 'text-white' }
 };
 
-            const platforms = ['Discord', 'Email', 'LinkedIn', 'Twitter', 'Instagram', 'Other'];
+            
 
             const stats = useMemo(() => {
                 return {
@@ -203,23 +426,36 @@ useEffect(() => {
     .doc(accountId)
     .onSnapshot(doc => {
       if (doc.exists) {
-        setContacts(doc.data().contacts || []);
+        const data = doc.data();
+        setContacts(data.contacts || []);
+        setPlatforms(data.platforms || [
+          'Discord', 'Email', 'LinkedIn', 'Twitter', 'Instagram'
+        ]);
+        setAttributeGroups(data.attributeGroups || []);
       }
-      setLoaded(true); // ✅ mark load complete
+      setLoaded(true);
     });
 
   return () => unsub();
 }, [accountId]);
 
 
+
 // Save contacts
 useEffect(() => {
-  if (!loaded) return; // ⛔ DO NOT SAVE BEFORE LOAD
+  if (!loaded) return;
 
   db.collection("accounts")
     .doc(accountId)
-    .set({ contacts }, { merge: true });
-}, [contacts, accountId, loaded]);
+    .set(
+      {
+        contacts,
+        platforms,
+        attributeGroups
+      },
+      { merge: true }
+    );
+}, [contacts, platforms, attributeGroups, accountId, loaded]);
 
 
 
@@ -315,6 +551,8 @@ useEffect(() => {
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 }, [contacts]);
 
+
+
             return (
                 <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
                     <div className="bg-white shadow-sm border-b border-slate-200">
@@ -334,10 +572,14 @@ useEffect(() => {
     <LineChart className="w-4 h-4" />
     <span>{showChart ? 'Hide' : 'Show'} Chart</span>
 </button>
-                                    <button onClick={handleBulkImport} className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition flex items-center space-x-2">
-                                        <Users className="w-4 h-4" />
-                                        <span>Bulk Import</span>
-                                    </button>
+                                    <button
+  onClick={() => setShowBulkModal(true)}
+  className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition flex items-center space-x-2"
+>
+  <Users className="w-4 h-4" />
+  <span>Bulk Import</span>
+</button>
+
                                     <button onClick={() => setShowAddForm(!showAddForm)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
                                         <Plus className="w-4 h-4" />
                                         <span>Add Contact</span>
@@ -471,9 +713,30 @@ useEffect(() => {
             </div>
             <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Platform</label>
-                <select value={formData.platform} onChange={(e) => setFormData({...formData, platform: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    {platforms.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+                <select
+  value={formData.platform}
+  onChange={(e) => {
+    if (e.target.value === "__add__") {
+      const name = prompt("Add new platform");
+      if (!name) return;
+      if (platforms.includes(name)) {
+        alert("Already exists");
+        return;
+      }
+      setPlatforms(prev => [...prev, name]);
+      setFormData({ ...formData, platform: name });
+      return;
+    }
+    setFormData({ ...formData, platform: e.target.value });
+  }}
+  className="w-full px-4 py-2 border border-slate-300 rounded-lg"
+>
+  {platforms.map(p => (
+    <option key={p} value={p}>{p}</option>
+  ))}
+  <option value="__add__">＋ Add New</option>
+</select>
+
             </div>
             <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Date Sent</label>
@@ -552,6 +815,12 @@ useEffect(() => {
                                                         <h3 className="text-2xl font-bold text-slate-900">{contact.name}</h3>
                                                         <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium">{contact.platform}</span>
                                                     </div>
+                                                    {contact.attribute && (
+  <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">
+    {contact.attribute}
+  </span>
+)}
+
                                                     {contact.email && (<p className="text-slate-600 text-sm mb-2">{contact.email}</p>)}
                                                     {contact.notes && (<p className="text-slate-500 text-sm italic mb-3">{contact.notes}</p>)}
                                                     <div className="flex items-center space-x-4 text-xs text-slate-500 flex-wrap">
@@ -596,6 +865,19 @@ useEffect(() => {
                             </div>
                         )}
                     </div>
+                    <BulkUploadModal
+  show={showBulkModal}
+  onClose={() => setShowBulkModal(false)}
+  bulkRows={bulkRows}
+  setBulkRows={setBulkRows}
+  platforms={platforms}
+  setPlatforms={setPlatforms}
+  attributeGroups={attributeGroups}
+  setAttributeGroups={setAttributeGroups}
+  setContacts={setContacts}
+/>
+
+
                 </div>
             );
         };
